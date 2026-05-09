@@ -146,6 +146,77 @@ vendai/
 └── public/                                      Static assets
 ```
 
+## Use VEND/AI from your Claude account (MCP server)
+
+VEND/AI exposes every published native tool as an MCP tool. Add VEND/AI as a remote MCP server in **Claude Desktop**, **claude.ai**, or **Cursor** and the lever-pull moves into your normal Claude session — same dispatcher, same wallet, same auto-refund on failure.
+
+### Setup
+
+1. **Sign in** with `OPERATOR_EMAIL` (or any operator account).
+2. **Issue an API key** at `/control/api-keys`. Copy it on the spot — it isn't shown again.
+3. **Add the MCP server** to your client:
+
+**Claude Desktop / Cursor (streamable HTTP, native):**
+
+```json
+{
+  "vendai": {
+    "url": "https://your-vendai-host/api/mcp",
+    "headers": { "Authorization": "Bearer va_live_..." }
+  }
+}
+```
+
+**Claude Desktop / stdio-only clients via mcp-remote:**
+
+```json
+{
+  "vendai": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "mcp-remote",
+      "https://your-vendai-host/api/mcp",
+      "--header",
+      "Authorization: Bearer va_live_..."
+    ]
+  }
+}
+```
+
+### Tools exposed
+
+Each native tool registers as `vendai_<slug>` (slug uses underscores). v1 launches with:
+
+| MCP tool name | What it does | Cost |
+|---|---|---|
+| `vendai_editorial_rewriter` | Rewrites text in editorial-Swiss voice | 4 coins |
+| `vendai_url_bullets` | Reads a URL, returns three editorial bullets | 12 coins |
+
+Calls bill the API-key-owner's wallet. If the owner has an active VIP grant, pulls bill the budget pool instead. Failed calls auto-refund within 5s.
+
+### How it routes internally
+
+```
+Claude Desktop → POST /api/mcp (Bearer va_live_...)
+                  ↓
+                  withMcpAuth → verifyApiKey() → { userId, email }
+                  ↓
+                  registerVendaiTools handler reads extra.authInfo
+                  ↓
+                  dispatch(slug, input, { userId, email })  ← same dispatcher
+                  ↓                                            the arcade uses
+                  Native adapter → tool.handler() → output
+                  ↓
+                  Auto-refund if it threw, settle if it didn't
+                  ↓
+                  Return MCP tool response (text + structuredContent)
+```
+
+One registry. Two surfaces (web + MCP). Same coin economy.
+
+---
+
 ## Spec deviations (v1 reality vs. spec)
 
 These are intentional. Logged here so future-you doesn't grep for missing pieces.
